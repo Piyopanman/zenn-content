@@ -18,12 +18,39 @@ https://www.npmjs.com/package/eslint-plugin-switch-case-order
 
 kintone 新機能開発チームは kintone の領域ごとに複数のサブチームに分かれていて、その中でも私はアプリの利用に関する領域にオーナーシップを持つアプリチームにいます。
 アプリチームでは現在フロントエンドのフレームワークの刷新を行っています。
-刷新中のコード内には、string 型の case ラベルに基づいて分岐する switch 文が複数あり、以下のような課題がありました。
+kintone のアプリとは、ユーザーが作ることのできる業務システムのことで、アプリにはフィールドという概念があり、その数は 20 個ほどです。
+フィールドごとの処理を書きたい時には、そのフィールドの種類を表す文字列の値で分岐する switch 文を用意するような設計になっているのですが、以下のような課題がありました。
 
-- 同じ条件で分岐しているのにも関わらず 各 switch 文で case ラベルの順序が一貫していないため、任意のラベルを探すのに若干手間取る
-- 各 switch 文には結構な行数があり、メンテナンスが大変
+- 各 switch 文で case の順序が一貫していないため、任意のフィールドの処理を探すのに若干手間取る
+- １つの switch 文に対して 20 個ほどの case を書くため各 switch 文には結構な行数があり、メンテナンスが大変
 
-そこで、「switch 文の中の case ラベルをアルファベット順に強制するような ESLint のカスタムルールを作れば良いのでは？」と思い立ちました。
+そこで、次のサンプルコードのような「switch 文の中の case ラベルをアルファベット順に強制するような ESLint のカスタムルールを作れば良いのでは？」と思い立ちました。
+
+```javascript
+// case句の文字列がアルファベット順になっていないのでinvalid
+switch (fruit) {
+  case "apple":
+    console.log("apple!");
+  case "cherry":
+    console.log("cherry!");
+  case "banana":
+    console.log("banana!");
+  default:
+    console.log("default!");
+}
+
+// valid
+switch (fruit) {
+  case "apple":
+    console.log("apple!");
+  case "banana":
+    console.log("banana!");
+  case "cherry":
+    console.log("cherry!");
+  default:
+    console.log("default!");
+}
+```
 
 # 実際にやったことの流れ
 
@@ -58,9 +85,9 @@ https://eslint.org/docs/latest/extend/custom-rule-tutorial
 ## AST について調べる
 
 チュートリアルをやる中で、カスタムルールを作るには AST についての知識が必要であることに気づきました。
-AST とは、Abstract Syntax Tree の略で、ソースコードの構造を木構造の形で表現したものです。ESLint はこの AST を利用して様々なルールを実装することができます。
+AST とは、Abstract Syntax Tree の略で、ソースコードの構造を木構造の形で表現したものです。ESLint ではこの AST を利用して様々なルールを実装できます。
 今までに触れたことのない概念だったので、このタイミングでキャッチアップをしました。
-便利なツールやサイトとしては、以下のようなものがありました。
+キャッチアップやデバッグに便利なツールやサイトとしては、以下のようなものがありました。
 
 - [AST explorer](https://astexplorer.net/)：JavaScript コードがどんな AST になるのかを確認できる
 - [Esprima: Parser](https://esprima.org/demo/parse.html)：AST explorer と似ているが、自分が書いた JavaScript コードの情報がクエリパラメータに入るので他の人と共有しやすい
@@ -75,6 +102,9 @@ AST とは、Abstract Syntax Tree の略で、ソースコードの構造を木�
 - ルールに合わなかった時のメッセージはどうするか
 - ライセンスはどうするか
 
+プラグイン名、ルール名に関しては、case だけだと大文字小文字の方のケースのように見えそうなので switch をつけて、`eslint-plugin-switch-case-order`にしました。
+ちなみに、npm で`eslint-plugin`で検索したところ、`plugin`の後ろにくる語数はだいたい 2 語、多くて 3 語でした。
+
 lint を走らせた時に表示されるメッセージやオプションについては、ESLint 標準のルールである[sort-keys](https://eslint.org/docs/latest/rules/sort-keys)を参考にすることにしました。
 というのも、利用者からすると ESLint 標準のルールと同じようなオプションの渡し方ができたり同じようなエラーメッセージを得られたりした方が、学習コストが低く使い勝手が良いのではないかと考えたからです。
 
@@ -88,7 +118,13 @@ lint を走らせた時に表示されるメッセージやオプションにつ
 - `caseSensitive` (boolean)：大文字小文字を区別するかどうか
 
 の３つのオプションを指定できるようにしました。
-このようなことを考えつつ、必要に応じて公式チュートリアルを読み直したり AST explorer を活用したりしながら実装、そしてテストを書き終えました。
+
+実装に関しても少しだけ書いておきます。
+[Esprima](<https://esprima.org/demo/parse.html?code=switch(fruit)%20%7B%0A%20%20%20%20case%20%22apple%22%3A%0A%20%20%20%20%20%20%20%20console.log(%22apple!!%22)%3B%0A%20%20%20%20case%20%22banana%22%3A%0A%20%20%20%20%20%20%20%20console.log(%22banana!!%22)%3B%0A%20%20%20%20case%20%22cherry%22%3A%0A%20%20%20%20%20%20%20%20console.log(%22cherry!!%22)%3B%0A%7D>)で簡単な switch 文のサンプルコードを書いて確認してみると、JavaScript コードでの switch 文は AST の SwitchStatement, case は SwitchCase に該当するとわかるので、この２つをルール本体を記述する create 関数 の中でリスナーとして待ち受けるようにします。
+![JSのコードとASTの対応](https://storage.googleapis.com/zenn-user-upload/caebf115d91f-20240321.png)
+今回のルールでは case が文字列の時にのみ対応するので、SwitchCase 内でそれを判定しつつ、test.value の値を見て意図した順番になっているか確認し、なっていなかったらその時点で context.report を呼び出してエラーを出力するようにしました。
+
+このように、必要に応じて公式チュートリアルを読み直したり Esprima を活用したりしながら実装、そしてテストを書き終えました。
 そのあとは、他のプラグインも参考にしつつ README にインストール方法や ESLint の設定ファイルでの記載方法やルールの具体例、package.json に必要な情報を記載し、 npm に公開するための体裁を整えていきました。
 
 ## npm にパッケージとして公開する
@@ -112,7 +148,7 @@ https://speakerdeck.com/cybozuinsideout/kintone-development-team-recruitment-inf
 
 # eslint-plugin-switch-order-case を導入
 
-パッケージ公開後、アプリチーム内で週１で行なっている LT 会でカスタムルールを作った話をしたところ、たまたまフロントエンドエキスパートチームの方が聴きに来てくださっていて、そこで教えてもらった eslint-plugin-eslint-plugin というプラグインを今回作った eslint-plugin-switch-order-case に導入してみました。
+パッケージ公開後、アプリチーム内で週１で行なっている LT 会でカスタムルールを作った話をしたところ、たまたま聴きに来ていたフロントエンドエキスパートチームの方に教えてもらった eslint-plugin-eslint-plugin というプラグインを今回作った eslint-plugin-switch-order-case に導入してみました。
 eslint-plugin-eslint-plugin は、ESLint プラグインを開発しやすくするためのプラグインです。
 https://github.com/eslint-community/eslint-plugin-eslint-plugin
 ルールの description の一貫性を担保するためのルールや、message ではなく messageId を使うことを強制するルールなど、有用なルールが集まっています。
