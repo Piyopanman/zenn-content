@@ -93,6 +93,14 @@ AST とは、Abstract Syntax Tree の略で、ソースコードの構造を木�
 - [Esprima: Parser](https://esprima.org/demo/parse.html)：AST explorer と似ているが、自分が書いた JavaScript コードの情報がクエリパラメータに入るので他の人と共有しやすい
 - [JavaScript Syntax | Grasp](https://esprima.org/demo/parse.html) ：JavaScript コードと AST の identifier の対応が確認しやすい
 
+:::message
+調べている当時は気づいていなかったのですが、Esprima はすでにメンテナンスされていないようです。
+他の人と共有しやすいものとしては、代わりに以下のいずれかの方法を使うと良さそうです。
+
+- [typescript-eslint の playground](https://typescript-eslint.io/play) で ESTree 表示する
+- [Prettier の playground](https://prettier.io/playground) で parser を espree か acorn に設定する
+  :::
+
 ## 実際に手を動かす
 
 ここまできてやっと実際に手を動かし始めましたが、いざやり始めようとすると実装以外にも色々考えなければいけないことがありました。
@@ -120,11 +128,11 @@ lint を走らせた時に表示されるメッセージやオプションにつ
 の３つのオプションを指定できるようにしました。
 
 実装に関しても少しだけ書いておきます。
-[Esprima](<https://esprima.org/demo/parse.html?code=switch(fruit)%20%7B%0A%20%20%20%20case%20%22apple%22%3A%0A%20%20%20%20%20%20%20%20console.log(%22apple!!%22)%3B%0A%20%20%20%20case%20%22banana%22%3A%0A%20%20%20%20%20%20%20%20console.log(%22banana!!%22)%3B%0A%20%20%20%20case%20%22cherry%22%3A%0A%20%20%20%20%20%20%20%20console.log(%22cherry!!%22)%3B%0A%7D>)で簡単な switch 文のサンプルコードを書いて確認してみると、JavaScript コードでの switch 文は AST の SwitchStatement, case は SwitchCase に該当するとわかるので、この２つをルール本体を記述する create 関数 の中でリスナーとして待ち受けるようにします。
-![JSのコードとASTの対応](https://storage.googleapis.com/zenn-user-upload/caebf115d91f-20240321.png)
+[typescript-eslint の playground](https://typescript-eslint.io/play/#ts=5.4.2&showAST=es&fileType=.tsx&code=FAZw7glgLgxgFgAgBQDMBOBXaBKBBvYBBGAQxAFMEAiEgB1oBtyqAuQo4gewDsROmAdA04BzJDXpMAhFKrYA3O1IVqAIxLcNJVuyIwefQcLFV1mzTLmK9ZSlXjk0aAJ46OXXv3JDR4h0%2BdLBWAAXyA&eslintrc=N4KABGBEBOCuA2BTAzpAXGYBfEWg&tsconfig=N4KABGBEDGD2C2AHAlgGwKYCcDyiAuysAdgM6QBcYoEEkJemy0eAcgK6qoDCAFutAGsylBm3TgwAXxCSgA&tokens=false)で簡単な switch 文のサンプルコードを書いて確認してみると、JavaScript コードでの switch 文は AST の SwitchStatement, case は SwitchCase に該当するとわかりました。なので、ルールの create 関数の返り値のオブジェクトに、それぞれのノードに該当するメソッドを実装します。これで、ESLint が switch 文と case を見つけたときに、これらのメソッドが呼び出されるようになります。
+![JSコードとASTの対応の一部](https://storage.googleapis.com/zenn-user-upload/e42b9e9de2db-20240321.png)
 今回のルールでは case が文字列の時にのみ対応するので、SwitchCase 内でそれを判定しつつ、test.value の値を見て意図した順番になっているか確認し、なっていなかったらその時点で context.report を呼び出してエラーを出力するようにしました。
 
-このように、必要に応じて公式チュートリアルを読み直したり Esprima を活用したりしながら実装、そしてテストを書き終えました。
+このように、必要に応じて公式チュートリアルを読み直したり AST explorer を活用したりしながら実装、そしてテストを書き終えました。
 そのあとは、他のプラグインも参考にしつつ README にインストール方法や ESLint の設定ファイルでの記載方法やルールの具体例、package.json に必要な情報を記載し、 npm に公開するための体裁を整えていきました。
 
 ## npm にパッケージとして公開する
